@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>내 루틴 스케줄</title>
+<style>
+  :root {
+    --bg: #f5f6fa; --card: #fff; --text: #222; --muted: #888;
+    --accent: #4f7cff; --done: #2fb344; --border: #e3e6ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+
+  /* 날짜 이동 */
+  .datebar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .datebar .title { font-weight: 700; font-size: 18px; text-align: center; flex: 1; }
+  .datebar .title small { display: block; color: var(--muted); font-weight: 400; font-size: 13px; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 6px 12px; }
+  button:hover { background: #f0f3ff; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { background: #3f68e0; }
+
+  /* 진행률 */
+  .progress { margin-top: 14px; }
+  .bar { height: 10px; background: #e8ebf3; border-radius: 999px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--done); transition: width .25s; }
+  .progress .label { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+  /* 루틴 목록 */
+  .routine { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--border); }
+  .routine:last-child { border-bottom: none; }
+  .routine input[type=checkbox] { width: 24px; height: 24px; accent-color: var(--done); cursor: pointer; flex-shrink: 0; }
+  .routine .info { flex: 1; min-width: 0; }
+  .routine .name { font-size: 16px; }
+  .routine .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .routine.done .name { text-decoration: line-through; color: var(--muted); }
+  .routine .del { border: none; background: none; color: #bbb; font-size: 18px; padding: 4px 8px; }
+  .routine .del:hover { color: #e03131; background: none; }
+  .empty { color: var(--muted); text-align: center; padding: 24px 0; }
+
+  /* 추가 폼 */
+  form { display: grid; gap: 10px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  input[type=text], input[type=time] {
+    font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: #fff;
+  }
+  input[type=text] { flex: 1; min-width: 160px; }
+  .days { display: flex; gap: 6px; flex-wrap: wrap; }
+  .days label { cursor: pointer; }
+  .days input { display: none; }
+  .days span {
+    display: inline-block; width: 36px; height: 36px; line-height: 36px; text-align: center;
+    border: 1px solid var(--border); border-radius: 50%; font-size: 14px; background: #fff;
+  }
+  .days input:checked + span { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* 주간 표 */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: center; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; padding-left: 4px; }
+  th.today { color: var(--accent); }
+  td .dot { display: inline-block; width: 18px; height: 18px; border-radius: 50%; line-height: 18px; font-size: 12px; }
+  td .dot.on { background: var(--done); color: #fff; }
+  td .dot.off { background: #eceff5; color: #bbb; }
+  td .dot.none { color: #ddd; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📅 내 루틴 스케줄</h1>
+
+  <!-- 날짜 선택 + 오늘의 체크리스트 -->
+  <div class="card">
+    <div class="datebar">
+      <button id="prev" aria-label="이전 날">◀</button>
+      <div class="title"><span id="dateText"></span><small id="dowText"></small></div>
+      <button id="next" aria-label="다음 날">▶</button>
+      <button id="todayBtn">오늘</button>
+    </div>
+    <div class="progress">
+      <div class="bar"><div id="barFill"></div></div>
+      <div class="label" id="progressLabel"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>체크리스트</h2>
+    <div id="list"></div>
+  </div>
+
+  <!-- 주간 현황 -->
+  <div class="card">
+    <h2>이번 주 현황</h2>
+    <div style="overflow-x:auto"><table id="weekTable"></table></div>
+  </div>
+
+  <!-- 루틴 추가 -->
+  <div class="card">
+    <h2>루틴 추가</h2>
+    <form id="addForm">
+      <div class="row">
+        <input type="text" id="nameInput" placeholder="예: 아침 운동 30분" required maxlength="60">
+        <input type="time" id="timeInput">
+      </div>
+      <div class="days" id="dayPicker"></div>
+      <div><button class="primary" type="submit">추가</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+(() => {
+  const DOW = ['일','월','화','수','목','금','토'];
+  const KEY = 'routine-app-v1';
+
+  // ---- 데이터: { routines: [{id,name,time,days:[0-6]}], checks: {"YYYY-MM-DD": [id,...]} } ----
+  let state = load();
+  let current = new Date();
+
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY));
+      if (s && s.routines && s.checks) return s;
+    } catch (e) {}
+    return {
+      routines: [
+        { id: uid(), name: '물 2L 마시기', time: '', days: [0,1,2,3,4,5,6] },
+        { id: uid(), name: '운동 30분', time: '07:00', days: [1,3,5] },
+        { id: uid(), name: '독서 20분', time: '22:00', days: [0,1,2,3,4,5,6] },
+      ],
+      checks: {}
+    };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+  function fmt(d) {
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+  function routinesFor(d) {
+    return state.routines
+      .filter(r => r.days.includes(d.getDay()))
+      .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  }
+  function isChecked(d, id) { return (state.checks[fmt(d)] || []).includes(id); }
+  function toggle(d, id) {
+    const k = fmt(d);
+    const arr = state.checks[k] || [];
+    state.checks[k] = arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id];
+    save(); render();
+  }
+
+  // ---- 렌더링 ----
+  function render() {
+    const key = fmt(current);
+    document.getElementById('dateText').textContent =
+      `${current.getFullYear()}년 ${current.getMonth()+1}월 ${current.getDate()}일`;
+    document.getElementById('dowText').textContent =
+      DOW[current.getDay()] + '요일' + (key === fmt(new Date()) ? ' · 오늘' : '');
+
+    const list = document.getElementById('list');
+    const items = routinesFor(current);
+    list.innerHTML = '';
+    if (!items.length) list.innerHTML = '<div class="empty">이 날 예정된 루틴이 없어요.</div>';
+    items.forEach(r => {
+      const done = isChecked(current, r.id);
+      const el = document.createElement('div');
+      el.className = 'routine' + (done ? ' done' : '');
+      el.innerHTML = `
+        <input type="checkbox" ${done ? 'checked' : ''} aria-label="완료 체크">
+        <div class="info">
+          <div class="name"></div>
+          <div class="meta">${r.time ? r.time + ' · ' : ''}${r.days.length === 7 ? '매일' : r.days.map(i => DOW[i]).join(' ')}</div>
+        </div>
+        <button class="del" title="루틴 삭제">✕</button>`;
+      el.querySelector('.name').textContent = r.name;
+      el.querySelector('input').addEventListener('change', () => toggle(current, r.id));
+      el.querySelector('.del').addEventListener('click', () => {
+        if (confirm(`'${r.name}' 루틴을 삭제할까요?`)) {
+          state.routines = state.routines.filter(x => x.id !== r.id);
+          save(); render();
+        }
+      });
+      list.appendChild(el);
+    });
+
+    const doneCnt = items.filter(r => isChecked(current, r.id)).length;
+    const pct = items.length ? Math.round(doneCnt / items.length * 100) : 0;
+    document.getElementById('barFill').style.width = pct + '%';
+    document.getElementById('progressLabel').textContent =
+      items.length ? `${doneCnt} / ${items.length} 완료 (${pct}%)` : '';
+
+    renderWeek();
+  }
+
+  function renderWeek() {
+    const start = new Date(current);
+    start.setDate(current.getDate() - current.getDay()); // 일요일 시작
+    const days = [...Array(7)].map((_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+    const todayKey = fmt(new Date());
+    let html = '<tr><th>루틴</th>' + days.map(d =>
+      `<th class="${fmt(d) === todayKey ? 'today' : ''}">${DOW[d.getDay()]}<br>${d.getDate()}</th>`).join('') + '</tr>';
+    state.routines.forEach(r => {
+      html += `<tr><td>${esc(r.name)}</td>` + days.map(d => {
+        if (!r.days.includes(d.getDay())) return '<td><span class="dot none">·</span></td>';
+        return isChecked(d, r.id)
+          ? '<td><span class="dot on">✓</span></td>'
+          : '<td><span class="dot off"></span></td>';
+      }).join('') + '</tr>';
+    });
+    if (!state.routines.length) html += '<tr><td colspan="8" class="empty">루틴이 없어요.</td></tr>';
+    document.getElementById('weekTable').innerHTML = html;
+  }
+  function esc(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  // ---- 이벤트 ----
+  const picker = document.getElementById('dayPicker');
+  picker.innerHTML = DOW.map((n, i) =>
+    `<label><input type="checkbox" value="${i}" checked><span>${n}</span></label>`).join('');
+
+  document.getElementById('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = document.getElementById('nameInput').value.trim();
+    const days = [...picker.querySelectorAll('input:checked')].map(i => +i.value);
+    if (!name || !days.length) { alert('이름과 요일을 하나 이상 선택해주세요.'); return; }
+    state.routines.push({ id: uid(), name, time: document.getElementById('timeInput').value, days });
+    save();
+    e.target.reset();
+    picker.querySelectorAll('input').forEach(i => i.checked = true);
+    render();
+  });
+  const move = n => { current.setDate(current.getDate() + n); render(); };
+  document.getElementById('prev').onclick = () => move(-1);
+  document.getElementById('next').onclick = () => move(1);
+  document.getElementById('todayBtn').onclick = () => { current = new Date(); render(); };
+
+  render();
+})();
+</script>
+</body>
+</html>
